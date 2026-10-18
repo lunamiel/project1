@@ -1,0 +1,105 @@
+---
+title: "Project: Overbooking with ntickets()"
+author: "Lucia Nguyen"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    theme: flatly
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Task 1: The overbooking problem
+
+- What are we solving for?
+
+An airline sells n tickets for a flight with N seats, and each person shows up with probability p. If X is the number of people who show, then X ~ Bin(n, p). We want the n where the chance of more people showing up than seats is exactly gamma, so
+
+$$1 - \gamma - P(X \le N) = 0$$
+
+The left side is the objective function. For the discrete case I use `pbinom()`, and for the continuous case I use the normal approximation with mean np, standard deviation $\sqrt{np(1-p)}$, and a continuity correction of N + 0.5.
+
+## Task 2: The ntickets function
+
+- Function body
+
+```{r ntickets}
+ntickets <- function(N, gamma, p) {
+  # values of n to search, from N up to 10% more than N
+  n <- seq(N, floor(N + N / 10), by = 1)
+
+  # discrete objective: 1 - gamma - P(X <= N) where X ~ Bin(n, p)
+  objd <- 1 - gamma - stats::pbinom(q = N, size = n, prob = p)
+  # n that makes the objective closest to 0
+  nd <- n[which.min(abs(objd))]
+
+  # continuous objective with normal approx and continuity correction
+  objc <- function(n) {
+    1 - gamma - stats::pnorm(N + 0.5, mean = n * p, sd = sqrt(n * p * (1 - p)))
+  }
+  # root of the continuous objective
+  nc <- stats::uniroot(objc, interval = c(N, floor(N + N / 10)))$root
+
+  # plot 1: discrete case
+  graphics::plot(n, objd, type = "b", pch = 21, bg = "#7FA86A",
+                 xlab = "n", ylab = "Objective",
+                 main = paste0("Objective Vs n to find optimal tickets sold\n(",
+                               nd, ") gamma = ", gamma, " N = ", N, " discrete"))
+  graphics::abline(h = 0, col = "red", lwd = 2)
+  graphics::abline(v = nd, col = "red", lwd = 2)
+
+  # plot 2: continuous case
+  nn <- seq(N, floor(N + N / 10), length.out = 500)
+  graphics::plot(nn, objc(nn), type = "l", lwd = 3, col = "#4E7A3E",
+                 xlab = "n", ylab = "Objective",
+                 main = paste0("Objective Vs n to find optimal tickets sold\n(",
+                               round(nc, 4), ") gamma = ", gamma, " N = ", N,
+                               " continuous"))
+  graphics::abline(h = 0, col = "blue", lwd = 2)
+  graphics::abline(v = nc, col = "blue", lwd = 2)
+
+  # named list
+  res <- list(nd = nd, nc = nc, N = N, p = p, gamma = gamma)
+  print(res)
+  invisible(res)
+}
+```
+
+## Task 3: Testing the function
+
+- ntickets(N = 400, gamma = 0.02, p = 0.95)
+
+```{r test, fig.width=7, fig.height=5}
+# test call from the assignment
+ntickets(N = 400, gamma = 0.02, p = 0.95)
+```
+
+The discrete method says to sell 412 tickets and the normal approximation gives about 412.02, so both ways agree the airline can sell around 412 tickets and only have a 2% chance of being overbooked.
+
+## Task 4: Package check
+
+- Last lines of R CMD check
+
+```
+✔  checking Rd metadata ...
+✔  checking Rd line widths ...
+✔  checking Rd cross-references ...
+✔  checking for missing documentation entries ...
+✔  checking for code/documentation mismatches ...
+✔  checking Rd \usage sections ...
+✔  checking Rd contents ...
+✔  checking for unstated dependencies in examples ...
+✔  checking examples (339ms)
+✔  checking for non-standard things in the check directory
+✔  checking for detritus in the temp directory
+   
+   
+── R CMD check results ─────────────────────────────────────────────────────────────────────────────────────────── MATH4753nguyen 0.1.0 ────
+Duration: 4.9s
+
+0 errors ✔ | 0 warnings ✔ | 0 notes ✔
+```
